@@ -1,5 +1,19 @@
 ### 2nd task AWS
-Short explanation: 
+
+#### Adding needed requirements of packages (https://www.npmjs.com/package/serverless-python-requirements).
+
+* $ serverless plugin install --name serverless-step-functions
+* $ serverless plugin install --name serverless-pseudo-parameters
+* create file requirements.txt with needed packages (requests, feedparser) in the main project folder.
+* $ sls plugin install -n serverless-python-requirements
+* $ sls deploy
+In total: serverless.yml should include
+
+plugins:- serverless -pseudo-parameters - serverless-step-functions - serverless-python-requirements
+
+custom: - pythonRequirements: - dockerizePip: true
+
+#### Short explanation: 
 * User is able to post list of links as a POST request (example is below)
 * These links are checked depending on their type ("Website", "RSS", "Twitter")
   * if "Website" returns time needed to load the page
