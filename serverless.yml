@@ -1,0 +1,194 @@
+# serverless.yml
+
+service: aws-serverless-project2
+
+frameworkVersion: '2'
+
+plugins:
+  - serverless-pseudo-parameters
+  - serverless-step-functions
+  - serverless-python-requirements
+custom:
+  pythonRequirements:
+    dockerizePip: true
+  apiGatewayServiceProxies:
+    - dynamodb:
+        path: jobs/{job_id}
+        method: get
+        tableName: { Ref: 'Table_jobs' }
+        hashKey:
+          queryStringParam: job_id # use query string parameter
+          attributeType: S
+        action: GetItem
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: dev
+  region: us-east-2
+  bearerToken: ""
+  lambdaHashingVersion: 20201221
+
+# you can add statements to the Lambda function's IAM Role here
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+      Resource:
+#        Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+        "Fn::GetAtt":
+          - KeyValuesDynamoDBTable
+          - Arn
+    - Effect: Allow
+      Action:
+#        - "ec2:*"
+#        - "s3:*"
+        - states:StartExecution
+      Resource:
+        - "*"
+
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}-Table_jobs
+    STATE_MACHINE: arn:aws:states:${opt:region, self:provider.region}:#{AWS::AccountId}:stateMachine:myStateMachineLinks2
+
+stepFunctions:
+  stateMachines:
+    testLinksStepfunc1:
+      name: myStateMachineLinks2
+      definition:
+        StartAt: funcLink
+        States:
+          funcLink:
+            Type: Choice
+            Choices:
+              - Variable: "$.linkType"
+                StringEquals: "Website"
+                Next: funcWebsite
+              - Variable: "$.linkType"
+                StringEquals: "Twitter"
+                Next: funcTwitter
+              - Variable: "$.linkType"
+                StringEquals: "RSS"
+                Next: funcRSS
+
+          funcWebsite:
+            Type: Task
+            Resource: # arn:aws:lambda:us-east-2:938668680897:function:func_website,
+              Fn::GetAtt: [ func_website,Arn ]
+            Next: Webhook
+          funcTwitter:
+            Type: Task
+            Resource: #arn:aws:lambda:us-east-2:938668680897:function:func_twitter,
+              Fn::GetAtt: [func_twitter,Arn]
+            Next: Webhook
+          funcRSS:
+            Type: Task
+            Resource: #arn:aws:lambda:us-east-2:938668680897:function:func_rss,
+              Fn::GetAtt: [ func_rss,Arn ]
+            Next: Webhook
+          Webhook:
+            Type: Task
+            Resource:
+              Fn::GetAtt: [func_result_processing,Arn]
+            End: true
+
+functions:
+  hello:
+    handler: handler.hello
+    events:
+      - http:
+            path: hello/
+            method: get
+
+  funcLink:
+    handler: func_link.lambda_handler
+#    handler: func_link_async.lambda_handler  # not finished
+    events:
+      - http:
+          path: jobs
+          method: post
+          integration: lambda
+          request:
+            template:
+              application/json: $input.json("$")
+    timeout: 10
+
+  funcLinkAsync:
+    handler: func_link_async.lambda_handler
+    events:
+      - http:
+          path: jobs1
+          method: post
+          integration: lambda
+
+  func_jobs_all:
+    handler: jobs_all.lambda_jobs_get_all
+    events:
+      - http:
+          path: jobs_all
+          method: get
+          integration: lambda
+
+  func_websites_all:
+    handler: websites_all.lambda_handler
+    events:
+      - http:
+          path: websites
+          method: get
+          integration: lambda
+
+  job_by_id:
+    handler: job_by_id.lambda_handler
+    events:
+      - http:
+          path: jobs/{job_id}
+          method: get
+          integration: lambda
+          request:
+            template:
+              application/json: '{"job_id": "$input.params("job_id")"}'
+
+  func_website:
+    handler: func_website.func_website
+
+  func_twitter:
+    handler: func_twitter.func_twitter
+
+  func_rss:
+    handler: func_rss.func_rss
+
+#  processWebsite:
+#    handler: func_website.func_website
+#    timeout: 50
+#  processTwitter:
+#    handler: func_twitter.func_twitter
+#    timeout: 50
+
+
+  func_result_processing:
+    handler: func_result_processing.func_result_processing
+
+resources:
+  Resources:
+    KeyValuesDynamoDBTable:
+#    testLinksStateMachine:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+#        TableName: ${self:custom.tableName}
+#        TableName: 'Table_jobs'
+        AttributeDefinitions:
+          -
+            AttributeName: job_id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: job_id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
