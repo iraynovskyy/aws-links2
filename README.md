@@ -34,9 +34,6 @@ custom: - pythonRequirements: - dockerizePip: true
   * /jobs/{job_id} GET job from DynamoDB by its id
   * /websites GET all jobs which have type of "Website"
 
-##### Needed packages were downloaded from https://pypi.org/ and added locally. Then deployed to AWS by using command $serverless deploy
-
-
 ##### Example of data in POST request (I was testing it from AWS console):
 {
   "links": [
